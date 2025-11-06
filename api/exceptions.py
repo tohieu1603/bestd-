@@ -75,6 +75,14 @@ def api_exception_handler(request, exc):
             "status_code": 422
         }, status=422)
 
+    # Python ValueError (from Pydantic validators)
+    if isinstance(exc, ValueError):
+        return JsonResponse({
+            "success": False,
+            "error": str(exc),
+            "status_code": 400
+        }, status=400)
+
     # Django ObjectDoesNotExist
     if isinstance(exc, ObjectDoesNotExist):
         return JsonResponse({
