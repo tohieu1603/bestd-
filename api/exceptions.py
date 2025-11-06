@@ -5,8 +5,24 @@ from django.http import JsonResponse
 from django.core.exceptions import ValidationError, PermissionDenied, ObjectDoesNotExist
 from pydantic import ValidationError as PydanticValidationError
 import logging
+import json
 
 logger = logging.getLogger(__name__)
+
+
+def serialize_pydantic_errors(errors):
+    """Convert Pydantic errors to JSON-serializable format."""
+    serialized = []
+    for error in errors:
+        error_dict = {}
+        for key, value in error.items():
+            if key == 'ctx' and isinstance(value, dict):
+                # Serialize context values
+                error_dict[key] = {k: str(v) for k, v in value.items()}
+            else:
+                error_dict[key] = str(value) if not isinstance(value, (str, int, float, bool, type(None), list, dict)) else value
+        serialized.append(error_dict)
+    return serialized
 
 
 class APIException(Exception):
@@ -68,10 +84,16 @@ def api_exception_handler(request, exc):
 
     # Pydantic validation errors
     if isinstance(exc, PydanticValidationError):
+        try:
+            details = serialize_pydantic_errors(exc.errors())
+        except Exception as e:
+            logger.error(f"Error serializing Pydantic errors: {e}")
+            details = str(exc)
+
         return JsonResponse({
             "success": False,
             "error": "Validation error",
-            "details": exc.errors(),
+            "details": details,
             "status_code": 422
         }, status=422)
 
