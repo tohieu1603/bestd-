@@ -6,6 +6,7 @@ from uuid import UUID
 from ninja import Router, Query
 from ninja.errors import HttpError
 from api.main import AuthBearer
+from api.permissions import require_roles, require_auth
 from .schemas import (
     EmployeeCreate, EmployeeUpdate, EmployeeRead,
     EmployeeList, EmployeeFilter
@@ -25,6 +26,7 @@ def debug_create(request):
 
 
 @router.post("/", response={201: EmployeeRead}, auth=AuthBearer(), summary="Tạo nhân viên mới")
+@require_roles('admin', 'Manager')
 def create_employee(request, payload: EmployeeCreate):
     """
     Tạo nhân viên mới.
@@ -91,6 +93,7 @@ def get_employee(request, employee_id: UUID):
 
 
 @router.put("/{employee_id}", response=EmployeeRead, summary="Cập nhật nhân viên")
+@require_roles('admin', 'Manager')
 def update_employee(request, employee_id: UUID, payload: EmployeeUpdate):
     """
     Cập nhật thông tin nhân viên.
@@ -119,6 +122,7 @@ def partial_update_employee(request, employee_id: UUID, payload: EmployeeUpdate)
 
 
 @router.delete("/{employee_id}", response={200: dict}, summary="Xóa nhân viên")
+@require_roles('admin')
 def delete_employee(request, employee_id: UUID):
     """
     Xóa nhân viên (soft delete - set is_active = False).

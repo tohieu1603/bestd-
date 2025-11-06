@@ -6,6 +6,8 @@ from uuid import UUID
 from datetime import date
 from ninja import Router, Query
 from ninja.errors import HttpError
+from api.main import AuthBearer
+from api.permissions import require_roles, require_auth
 from .schemas import (
     ProjectCreate, ProjectUpdate, ProjectRead, ProjectList,
     AddMilestoneRequest, UpdateProgressRequest, AddPaymentRequest
@@ -15,7 +17,7 @@ from .services import ProjectService
 router = Router(tags=["Projects"])
 
 
-@router.post("/", response={201: ProjectRead}, summary="Tạo dự án mới")
+@router.post("/", response={201: ProjectRead}, auth=AuthBearer(), summary="Tạo dự án mới")
 def create_project(request, payload: ProjectCreate):
     """
     Tạo dự án mới.
@@ -37,7 +39,7 @@ def create_project(request, payload: ProjectCreate):
         raise HttpError(400, f"Không thể tạo dự án: {str(e)}")
 
 
-@router.get("/", response=ProjectList, summary="Lấy danh sách dự án")
+@router.get("/", response=ProjectList, auth=AuthBearer(), summary="Lấy danh sách dự án")
 def list_projects(request):
     """
     Lấy danh sách dự án với các filter options.
@@ -98,21 +100,32 @@ def update_project(request, project_id: UUID, payload: ProjectUpdate):
     return project
 
 
-@router.patch("/{project_id}", response=ProjectRead, summary="Cập nhật một phần dự án")
+@router.patch("/{project_id}", response=ProjectRead, auth=AuthBearer(), summary="Cập nhật một phần dự án")
 def partial_update_project(request, project_id: UUID, payload: ProjectUpdate):
     """
     Cập nhật một phần thông tin dự án.
 
     - **project_id**: UUID của dự án
     - **payload**: Dữ liệu cần cập nhật (chỉ cần truyền fields muốn cập nhật)
+
+    Permissions:
+    - Status updates to 'confirmed': Requires admin or Manager role
+    - Other updates: Requires authentication
     """
+    # Check if trying to confirm project (set status to 'confirmed')
+    if payload.status == 'confirmed':
+        user_role = getattr(request.user, 'role', None)
+        if user_role not in ['admin', 'Manager']:
+            raise HttpError(403, "Chỉ admin hoặc Manager mới có thể xác nhận dự án")
+
     project = ProjectService.update_project(project_id, payload, updated_by=request.user)
     if not project:
         raise HttpError(404, "Không tìm thấy dự án")
     return project
 
 
-@router.delete("/{project_id}", response={200: dict}, summary="Xóa dự án")
+@router.delete("/{project_id}", response={200: dict}, auth=AuthBearer(), summary="Xóa dự án")
+@require_roles('admin', 'Manager')
 def delete_project(request, project_id: UUID):
     """
     Xóa dự án (set status = cancelled).
