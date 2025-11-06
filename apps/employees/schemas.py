@@ -26,18 +26,14 @@ class EmployeeBase(BaseModel):
             raise ValueError(f'Role must be one of: {", ".join(allowed_roles)}')
         return v
 
+    # Removed strict skill validation to allow flexibility
+    # Skills can be any string now
     @field_validator('skills')
     @classmethod
     def validate_skills(cls, v):
-        allowed_skills = [
-            'Chụp chính', 'Chụp phụ', 'Retouch', 'Makeup', 'Làm tóc',
-            'Styling', 'Sales', 'Tư vấn khách hàng', 'Quản lý dự án',
-            'Viết content', 'Thiết kế', 'Quay phim', 'Dựng phim',
-            'Quản lý social', 'Marketing', 'Chăm sóc khách hàng'
-        ]
-        for skill in v:
-            if skill not in allowed_skills:
-                raise ValueError(f'Invalid skill: {skill}')
+        # Just ensure it's a list of non-empty strings
+        if v:
+            v = [s.strip() for s in v if s and s.strip()]
         return v
 
 
