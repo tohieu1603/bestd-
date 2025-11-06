@@ -1,0 +1,3 @@
+"""
+Employee management app.
+"""

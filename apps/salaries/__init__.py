@@ -1,0 +1,3 @@
+"""
+Salary management app.
+"""
