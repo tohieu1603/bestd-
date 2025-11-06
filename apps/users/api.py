@@ -9,11 +9,57 @@ from .schemas import (
     TokenSchema,
     UserSchema,
     PasswordChangeSchema,
+    UserCreate,
 )
 from .services import create_jwt_token, verify_jwt_token
 from api.main import AuthBearer
 
 router = Router()
+
+
+@router.post("/register", auth=None, response={201: dict})
+def register(request, payload: UserCreate):
+    """
+    User registration endpoint.
+    Creates a new user account.
+    """
+    from .models import User
+
+    # Check if username already exists
+    if User.objects.filter(username=payload.username).exists():
+        raise HttpError(400, "Username already exists")
+
+    # Check if email already exists (if provided)
+    if payload.email and User.objects.filter(email=payload.email).exists():
+        raise HttpError(400, "Email already exists")
+
+    # Create user
+    user = User.objects.create_user(
+        username=payload.username,
+        email=payload.email,
+        password=payload.password,
+        full_name=payload.full_name,
+        role=payload.role,
+    )
+
+    # Generate token
+    token = create_jwt_token(user)
+
+    return 201, {
+        "success": True,
+        "token": token,
+        "message": "Registration successful",
+        "user": {
+            "id": str(user.id),
+            "username": user.username,
+            "email": user.email,
+            "full_name": user.full_name,
+            "role": user.role,
+            "is_active": user.is_active,
+            "created_at": user.created_at.isoformat(),
+            "updated_at": user.updated_at.isoformat(),
+        }
+    }
 
 
 @router.post("/login", auth=None)
