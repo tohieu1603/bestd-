@@ -121,11 +121,12 @@ def partial_update_employee(request, employee_id: UUID, payload: EmployeeUpdate)
     return employee
 
 
-@router.delete("/{employee_id}", response={200: dict}, summary="Xóa nhân viên")
+@router.delete("/{employee_id}", response={200: dict}, auth=AuthBearer(), summary="Xóa nhân viên")
 @require_roles('admin')
 def delete_employee(request, employee_id: UUID):
     """
-    Xóa nhân viên (soft delete - set is_active = False).
+    Xóa nhân viên THẬT SỰ khỏi database (hard delete).
+    Chỉ admin mới có quyền xóa.
 
     - **employee_id**: UUID của nhân viên
     """
@@ -133,6 +134,36 @@ def delete_employee(request, employee_id: UUID):
     if not success:
         raise HttpError(404, "Không tìm thấy nhân viên")
     return {"success": True, "message": "Đã xóa nhân viên thành công"}
+
+
+@router.patch("/{employee_id}/deactivate", response=EmployeeRead, auth=AuthBearer(), summary="Cho nhân viên nghỉ việc")
+@require_roles('admin', 'manager')
+def deactivate_employee(request, employee_id: UUID):
+    """
+    Cho nhân viên nghỉ việc (set is_active = False).
+    Admin và Manager có quyền này.
+
+    - **employee_id**: UUID của nhân viên
+    """
+    employee = EmployeeService.deactivate_employee(employee_id)
+    if not employee:
+        raise HttpError(404, "Không tìm thấy nhân viên")
+    return employee
+
+
+@router.patch("/{employee_id}/activate", response=EmployeeRead, auth=AuthBearer(), summary="Cho nhân viên quay lại làm việc")
+@require_roles('admin', 'manager')
+def activate_employee(request, employee_id: UUID):
+    """
+    Cho nhân viên quay lại làm việc (set is_active = True).
+    Admin và Manager có quyền này.
+
+    - **employee_id**: UUID của nhân viên
+    """
+    employee = EmployeeService.activate_employee(employee_id)
+    if not employee:
+        raise HttpError(404, "Không tìm thấy nhân viên")
+    return employee
 
 
 @router.get("/role/{role}", response=list[EmployeeRead], summary="Lấy nhân viên theo vai trò")

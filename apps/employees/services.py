@@ -139,7 +139,7 @@ class EmployeeService:
     @staticmethod
     def delete_employee(employee_id: UUID) -> bool:
         """
-        Xóa nhân viên (soft delete - set is_active = False).
+        Xóa nhân viên THẬT SỰ khỏi database (hard delete).
 
         Args:
             employee_id: ID nhân viên
@@ -149,11 +149,48 @@ class EmployeeService:
         """
         try:
             employee = Employee.objects.get(id=employee_id)
-            employee.is_active = False
-            employee.save()
+            employee.delete()
             return True
         except Employee.DoesNotExist:
             return False
+
+    @staticmethod
+    def deactivate_employee(employee_id: UUID) -> Optional[Employee]:
+        """
+        Cho nhân viên nghỉ việc (set is_active = False).
+
+        Args:
+            employee_id: ID nhân viên
+
+        Returns:
+            Employee object hoặc None
+        """
+        try:
+            employee = Employee.objects.get(id=employee_id)
+            employee.is_active = False
+            employee.save()
+            return employee
+        except Employee.DoesNotExist:
+            return None
+
+    @staticmethod
+    def activate_employee(employee_id: UUID) -> Optional[Employee]:
+        """
+        Cho nhân viên quay lại làm việc (set is_active = True).
+
+        Args:
+            employee_id: ID nhân viên
+
+        Returns:
+            Employee object hoặc None
+        """
+        try:
+            employee = Employee.objects.get(id=employee_id)
+            employee.is_active = True
+            employee.save()
+            return employee
+        except Employee.DoesNotExist:
+            return None
 
     @staticmethod
     def get_employees_by_role(role: str) -> List[Employee]:
