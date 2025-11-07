@@ -85,6 +85,11 @@ class ProjectService:
 
         from apps.packages.models import Package
 
+        # Validate: Cannot change from 'completed' to 'cancelled'
+        if hasattr(data, 'status') and data.status is not None:
+            if project.status == 'completed' and data.status == 'cancelled':
+                raise ValueError("Không thể hủy dự án đã hoàn thành")
+
         update_data = data.model_dump(
             exclude_unset=True,
             exclude={'additional_packages', 'team', 'partners', 'payment', 'progress', 'milestones', 'files', 'package_type'}
