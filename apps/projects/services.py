@@ -94,7 +94,7 @@ class ProjectService:
             setattr(project, field, value)
 
         # Handle package_type ForeignKey
-        if data.package_type is not None:
+        if hasattr(data, 'package_type') and data.package_type is not None:
             if data.package_type:
                 try:
                     package = Package.objects.get(id=data.package_type)
@@ -104,26 +104,26 @@ class ProjectService:
             else:
                 project.package_type = None
 
-        # Update nested fields
-        if data.additional_packages is not None:
+        # Update nested fields (only if they exist in the update schema)
+        if hasattr(data, 'additional_packages') and data.additional_packages is not None:
             project.additional_packages = [pkg.model_dump(mode='json') for pkg in data.additional_packages]
 
-        if data.team is not None:
+        if hasattr(data, 'team') and data.team is not None:
             project.team = data.team.model_dump(mode='json')
 
-        if data.partners is not None:
+        if hasattr(data, 'partners') and data.partners is not None:
             project.partners = data.partners.model_dump(mode='json')
 
-        if data.payment is not None:
+        if hasattr(data, 'payment') and data.payment is not None:
             project.payment = data.payment.model_dump(mode='json')
 
-        if data.progress is not None:
+        if hasattr(data, 'progress') and data.progress is not None:
             project.progress = data.progress.model_dump()
 
-        if data.milestones is not None:
+        if hasattr(data, 'milestones') and data.milestones is not None:
             project.milestones = [milestone.model_dump(mode='json') for milestone in data.milestones]
 
-        if data.files is not None:
+        if hasattr(data, 'files') and data.files is not None:
             project.files = [file.model_dump(mode='json') for file in data.files]
 
         if updated_by:

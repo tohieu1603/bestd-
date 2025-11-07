@@ -114,11 +114,18 @@ def partial_update_project(request, project_id: UUID, payload: ProjectUpdate):
     """
     # Check if trying to confirm project (set status to 'confirmed')
     if payload.status == 'confirmed':
-        user_role = getattr(request.user, 'role', None)
-        if user_role not in ['admin', 'Manager']:
+        # Get user from auth
+        user = request.auth
+        user_role = getattr(user, 'role', None) if user else None
+        if user_role not in ['admin', 'manager']:
             raise HttpError(403, "Chỉ admin hoặc Manager mới có thể xác nhận dự án")
 
-    project = ProjectService.update_project(project_id, payload, updated_by=request.user)
+        # Use the authenticated user for update
+        project = ProjectService.update_project(project_id, payload, updated_by=user)
+    else:
+        # For non-confirmation updates, use request.auth
+        project = ProjectService.update_project(project_id, payload, updated_by=request.auth)
+
     if not project:
         raise HttpError(404, "Không tìm thấy dự án")
     return project
