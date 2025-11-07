@@ -132,7 +132,7 @@ def partial_update_project(request, project_id: UUID, payload: ProjectUpdate):
 
 
 @router.delete("/{project_id}", response={200: dict}, auth=AuthBearer(), summary="Xóa dự án")
-@require_roles('admin', 'Manager')
+@require_roles('admin', 'manager')
 def delete_project(request, project_id: UUID):
     """
     Xóa dự án (set status = cancelled).

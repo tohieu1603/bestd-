@@ -26,7 +26,7 @@ def debug_create(request):
 
 
 @router.post("/", response={201: EmployeeRead}, auth=AuthBearer(), summary="Tạo nhân viên mới")
-@require_roles('admin', 'Manager')
+@require_roles('admin', 'manager')
 def create_employee(request, payload: EmployeeCreate):
     """
     Tạo nhân viên mới.
@@ -93,7 +93,7 @@ def get_employee(request, employee_id: UUID):
 
 
 @router.put("/{employee_id}", response=EmployeeRead, summary="Cập nhật nhân viên")
-@require_roles('admin', 'Manager')
+@require_roles('admin', 'manager')
 def update_employee(request, employee_id: UUID, payload: EmployeeUpdate):
     """
     Cập nhật thông tin nhân viên.

@@ -8,15 +8,22 @@ from ninja.errors import HttpError
 def require_roles(*allowed_roles):
     """
     Decorator to check if user has required role.
-    Usage: @require_roles('admin', 'Manager')
+    Usage: @require_roles('admin', 'manager')
     """
     def decorator(func):
         @wraps(func)
         def wrapper(request, *args, **kwargs):
-            if not request.user or not request.user.is_authenticated:
+            # Check both request.auth (Django Ninja) and request.user (Django)
+            user = getattr(request, 'auth', None) or getattr(request, 'user', None)
+
+            if not user:
                 raise HttpError(401, "Authentication required")
 
-            user_role = getattr(request.user, 'role', None)
+            # Check if user is authenticated (for Django User objects)
+            if hasattr(user, 'is_authenticated') and not user.is_authenticated:
+                raise HttpError(401, "Authentication required")
+
+            user_role = getattr(user, 'role', None)
             if user_role not in allowed_roles:
                 raise HttpError(403, f"Permission denied. Required roles: {', '.join(allowed_roles)}")
 
@@ -32,10 +39,17 @@ def require_admin(func):
     """
     @wraps(func)
     def wrapper(request, *args, **kwargs):
-        if not request.user or not request.user.is_authenticated:
+        # Check both request.auth (Django Ninja) and request.user (Django)
+        user = getattr(request, 'auth', None) or getattr(request, 'user', None)
+
+        if not user:
             raise HttpError(401, "Authentication required")
 
-        if getattr(request.user, 'role', None) != 'admin':
+        # Check if user is authenticated (for Django User objects)
+        if hasattr(user, 'is_authenticated') and not user.is_authenticated:
+            raise HttpError(401, "Authentication required")
+
+        if getattr(user, 'role', None) != 'admin':
             raise HttpError(403, "Admin access required")
 
         return func(request, *args, **kwargs)
@@ -49,7 +63,14 @@ def require_auth(func):
     """
     @wraps(func)
     def wrapper(request, *args, **kwargs):
-        if not request.user or not request.user.is_authenticated:
+        # Check both request.auth (Django Ninja) and request.user (Django)
+        user = getattr(request, 'auth', None) or getattr(request, 'user', None)
+
+        if not user:
+            raise HttpError(401, "Authentication required")
+
+        # Check if user is authenticated (for Django User objects)
+        if hasattr(user, 'is_authenticated') and not user.is_authenticated:
             raise HttpError(401, "Authentication required")
 
         return func(request, *args, **kwargs)
