@@ -1,0 +1,300 @@
+"""
+API integration tests for Projects endpoints.
+"""
+import pytest
+from datetime import date
+from decimal import Decimal
+from django.test import TestCase, Client
+from apps.users.models import User
+from apps.employees.models import Employee
+from apps.packages.models import Package
+from apps.projects.models import Project
+import json
+
+
+@pytest.mark.django_db
+class TestProjectAPI(TestCase):
+    """Test cases for Project API endpoints."""
+
+    def setUp(self):
+        """Set up test data and client."""
+        self.client = Client()
+
+        # Create test users
+        self.admin_user = User.objects.create_user(
+            username='admin',
+            email='admin@example.com',
+            password='admin123',
+            role='admin'
+        )
+
+        self.manager_user = User.objects.create_user(
+            username='manager',
+            email='manager@example.com',
+            password='manager123',
+            role='manager'
+        )
+
+        self.employee_user = User.objects.create_user(
+            username='employee',
+            email='employee@example.com',
+            password='employee123',
+            role='employee'
+        )
+
+        # Create test photographer
+        self.photographer = Employee.objects.create(
+            name='Test Photographer',
+            role='Photo/Retouch',
+            phone='0123456789',
+            email='photo@example.com',
+            is_active=True,
+            created_by=self.admin_user
+        )
+
+        # Create test package
+        self.package = Package.objects.create(
+            name='Wedding Basic',
+            category='wedding',
+            price=Decimal('5000000'),
+            description='Basic wedding package',
+            created_by=self.admin_user
+        )
+
+    def _get_auth_header(self, user):
+        """Helper to get authentication header."""
+        from apps.users.services import create_jwt_token
+        token = create_jwt_token(user)
+        return {'HTTP_AUTHORIZATION': f'Bearer {token}'}
+
+    def _create_test_project(self, **kwargs):
+        """Helper to create test project with required fields."""
+        defaults = {
+            'customer_name': 'Test Customer',
+            'customer_phone': '0123456789',
+            'customer_email': 'customer@example.com',  # Valid email to avoid validation error
+            'package_type': self.package,
+            'package_name': 'Test Package',
+            'package_price': 5000000,
+            'package_discount': 0,
+            'package_final_price': 5000000,
+            'shoot_date': date.today(),
+            'status': 'pending',
+            'team': {
+                'main_photographer': {
+                    'employee': str(self.photographer.id),
+                    'salary': 1000000
+                }
+            },
+            'created_by': self.admin_user
+        }
+        defaults.update(kwargs)
+        return Project.objects.create(**defaults)
+
+    def test_create_project_success_as_admin(self):
+        """Test creating project successfully as admin."""
+        # Arrange
+        auth_header = self._get_auth_header(self.admin_user)
+        payload = {
+            'customer_name': 'John Doe',
+            'customer_phone': '0123456789',
+            'customer_email': 'john@example.com',
+            'package_type': str(self.package.id),
+            'package_name': 'Wedding Basic',
+            'package_price': 5000000,
+            'package_discount': 0,
+            'shoot_date': str(date.today()),
+            'team': {
+                'main_photographer': {
+                    'employee': str(self.photographer.id),
+                    'salary': 1000000,
+                    'bonus': 200000
+                }
+            },
+            'payment': {
+                'status': 'unpaid',
+                'deposit': 3000000,
+                'final': 5000000,
+                'paid': 0
+            }
+        }
+
+        # Act
+        response = self.client.post(
+            '/api/projects/',
+            data=json.dumps(payload),
+            content_type='application/json',
+            **auth_header
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, 201)
+        data = json.loads(response.content)
+        self.assertEqual(data['customer_name'], 'John Doe')
+        self.assertEqual(data['status'], 'pending')
+
+    def test_create_project_without_photographer_fails(self):
+        """Test creating project without photographer fails."""
+        # Arrange
+        auth_header = self._get_auth_header(self.admin_user)
+        payload = {
+            'customer_name': 'John Doe',
+            'customer_phone': '0123456789',
+            'package_type': str(self.package.id),
+            'package_name': 'Wedding Basic',
+            'package_price': 5000000,
+            'package_discount': 0,
+            'shoot_date': str(date.today()),
+            'team': None  # No team
+        }
+
+        # Act
+        response = self.client.post(
+            '/api/projects/',
+            data=json.dumps(payload),
+            content_type='application/json',
+            **auth_header
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, 400)
+        data = json.loads(response.content)
+        self.assertIn('Photographer', data['detail'])
+
+    def test_create_project_unauthorized_fails(self):
+        """Test creating project without auth fails."""
+        # Arrange
+        payload = {
+            'customer_name': 'John Doe',
+            'customer_phone': '0123456789',
+            'package_type': str(self.package.id),
+            'package_name': 'Wedding Basic',
+            'package_price': 5000000,
+            'package_discount': 0,
+            'shoot_date': str(date.today())
+        }
+
+        # Act
+        response = self.client.post(
+            '/api/projects/',
+            data=json.dumps(payload),
+            content_type='application/json'
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, 401)
+
+    def test_list_projects_success(self):
+        """Test listing projects successfully."""
+        # Arrange
+        auth_header = self._get_auth_header(self.admin_user)
+        self._create_test_project(customer_name='Customer 1')
+
+        # Act
+        response = self.client.get('/api/projects/', **auth_header)
+
+        # Assert
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.content)
+        self.assertIn('total', data)
+        self.assertIn('items', data)
+        self.assertGreaterEqual(data['total'], 1)
+
+    def test_delete_project_as_admin_success(self):
+        """Test deleting project as admin succeeds."""
+        # Arrange
+        auth_header = self._get_auth_header(self.admin_user)
+        project = self._create_test_project()
+
+        # Act
+        response = self.client.delete(
+            f'/api/projects/{project.id}',
+            **auth_header
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, 200)
+        project.refresh_from_db()
+        self.assertEqual(project.status, 'cancelled')
+
+    def test_delete_completed_project_fails(self):
+        """Test deleting completed project fails."""
+        # Arrange
+        auth_header = self._get_auth_header(self.admin_user)
+        project = self._create_test_project(status='completed')
+
+        # Act
+        response = self.client.delete(
+            f'/api/projects/{project.id}',
+            **auth_header
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, 400)
+        data = json.loads(response.content)
+        # Check for error message in different possible keys
+        error_message = data.get('detail') or data.get('message') or str(data)
+        self.assertIn('hoàn thành', error_message)
+
+    def test_delete_project_as_employee_fails(self):
+        """Test that employee cannot delete project."""
+        # Arrange
+        auth_header = self._get_auth_header(self.employee_user)
+        project = self._create_test_project()
+
+        # Act
+        response = self.client.delete(
+            f'/api/projects/{project.id}',
+            **auth_header
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, 403)
+
+    def test_update_project_status_success(self):
+        """Test updating project status successfully."""
+        # Arrange
+        auth_header = self._get_auth_header(self.admin_user)
+        project = self._create_test_project()
+
+        payload = {
+            'status': 'confirmed'
+        }
+
+        # Act
+        response = self.client.patch(
+            f'/api/projects/{project.id}',
+            data=json.dumps(payload),
+            content_type='application/json',
+            **auth_header
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, 200)
+        project.refresh_from_db()
+        self.assertEqual(project.status, 'confirmed')
+
+    def test_update_completed_to_cancelled_fails(self):
+        """Test changing from completed to cancelled fails."""
+        # Arrange
+        auth_header = self._get_auth_header(self.admin_user)
+        project = self._create_test_project(status='completed')
+
+        payload = {
+            'status': 'cancelled'
+        }
+
+        # Act
+        response = self.client.patch(
+            f'/api/projects/{project.id}',
+            data=json.dumps(payload),
+            content_type='application/json',
+            **auth_header
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, 400)
+        data = json.loads(response.content)
+        # Check for error message in different possible keys
+        error_message = data.get('detail') or data.get('message') or str(data)
+        self.assertIn('hoàn thành', error_message)

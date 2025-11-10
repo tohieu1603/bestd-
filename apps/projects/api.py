@@ -26,7 +26,7 @@ def create_project(request, payload: ProjectCreate):
     - **customer_phone**: Số điện thoại (bắt buộc)
     - **package_type**: ID gói chụp (bắt buộc)
     - **shoot_date**: Ngày chụp (bắt buộc)
-    - **team**: Đội ngũ thực hiện
+    - **team**: Đội ngũ thực hiện (main_photographer bắt buộc)
     - **partners**: Đối tác
     - **payment**: Thông tin thanh toán
     """
@@ -35,7 +35,11 @@ def create_project(request, payload: ProjectCreate):
         created_by = request.user if request.user.is_authenticated else None
         project = ProjectService.create_project(payload, created_by=created_by)
         return 201, project
+    except ValueError as e:
+        # Validation errors - return clear message
+        raise HttpError(400, str(e))
     except Exception as e:
+        # Other errors
         raise HttpError(400, f"Không thể tạo dự án: {str(e)}")
 
 
@@ -139,10 +143,13 @@ def delete_project(request, project_id: UUID):
 
     - **project_id**: UUID của dự án
     """
-    success = ProjectService.delete_project(project_id)
-    if not success:
-        raise HttpError(404, "Không tìm thấy dự án")
-    return {"success": True, "message": "Đã hủy dự án thành công"}
+    try:
+        success = ProjectService.delete_project(project_id)
+        if not success:
+            raise HttpError(404, "Không tìm thấy dự án")
+        return {"success": True, "message": "Đã hủy dự án thành công"}
+    except ValueError as e:
+        raise HttpError(400, str(e))
 
 
 @router.post("/{project_id}/milestones", response=ProjectRead, summary="Thêm milestone")

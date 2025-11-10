@@ -135,6 +135,128 @@ class SalaryService:
             return False
 
     @staticmethod
+    def create_monthly_salary(data: MonthlySalaryCreate, created_by=None) -> MonthlySalary:
+        """
+        Tạo monthly salary mới.
+
+        Args:
+            data: Dữ liệu monthly salary
+            created_by: User tạo
+
+        Returns:
+            MonthlySalary object
+        """
+        salary_data = data.model_dump()
+        employee_id = salary_data.pop('employee_id')
+
+        try:
+            employee = Employee.objects.get(id=employee_id)
+        except Employee.DoesNotExist:
+            raise ValueError(f"Employee with id {employee_id} does not exist")
+
+        monthly_salary = MonthlySalary(
+            employee=employee,
+            **salary_data
+        )
+
+        # Only set created_by if it's a valid user instance
+        if created_by and hasattr(created_by, 'id'):
+            monthly_salary.created_by = created_by
+
+        monthly_salary.save()
+        return monthly_salary
+
+    @staticmethod
+    def update_monthly_salary(salary_id: UUID, data: MonthlySalaryUpdate) -> Optional[MonthlySalary]:
+        """
+        Cập nhật monthly salary.
+
+        Args:
+            salary_id: ID monthly salary
+            data: Dữ liệu cập nhật
+
+        Returns:
+            MonthlySalary object hoặc None
+        """
+        try:
+            monthly_salary = MonthlySalary.objects.get(id=salary_id)
+        except MonthlySalary.DoesNotExist:
+            return None
+
+        update_data = data.model_dump(exclude_unset=True)
+        for field, value in update_data.items():
+            setattr(monthly_salary, field, value)
+
+        monthly_salary.save()
+        return monthly_salary
+
+    @staticmethod
+    def get_monthly_salary(salary_id: UUID) -> Optional[MonthlySalary]:
+        """
+        Lấy monthly salary theo ID.
+
+        Args:
+            salary_id: ID monthly salary
+
+        Returns:
+            MonthlySalary object hoặc None
+        """
+        try:
+            return MonthlySalary.objects.select_related('employee').get(id=salary_id)
+        except MonthlySalary.DoesNotExist:
+            return None
+
+    @staticmethod
+    def list_monthly_salaries(
+        month: Optional[str] = None,
+        status: Optional[str] = None,
+        skip: int = 0,
+        limit: int = 20
+    ) -> tuple[List[MonthlySalary], int]:
+        """
+        Lấy danh sách monthly salary.
+
+        Args:
+            month: Filter theo tháng
+            status: Filter theo trạng thái
+            skip: Số bản ghi bỏ qua
+            limit: Số bản ghi tối đa
+
+        Returns:
+            Tuple (danh sách monthly salary, tổng số)
+        """
+        queryset = MonthlySalary.objects.select_related('employee').all()
+
+        if month:
+            queryset = queryset.filter(month=month)
+
+        if status:
+            queryset = queryset.filter(status=status)
+
+        total = queryset.count()
+        salaries = list(queryset[skip:skip + limit])
+
+        return salaries, total
+
+    @staticmethod
+    def delete_monthly_salary(salary_id: UUID) -> bool:
+        """
+        Xóa monthly salary.
+
+        Args:
+            salary_id: ID monthly salary
+
+        Returns:
+            True nếu thành công, False nếu không tìm thấy
+        """
+        try:
+            monthly_salary = MonthlySalary.objects.get(id=salary_id)
+            monthly_salary.delete()
+            return True
+        except MonthlySalary.DoesNotExist:
+            return False
+
+    @staticmethod
     def calculate_monthly_salary(employee_id: UUID, month: str, created_by=None) -> MonthlySalary:
         """
         Tính lương tháng cho nhân viên.
@@ -168,23 +290,17 @@ class SalaryService:
             total_amount += salary.amount
             total_bonus += salary.bonus
 
-        # Breakdown
-        breakdown = {
-            'base_salary': float(employee.base_salary),
-            'project_salaries': project_salaries,
-            'total_project_amount': float(total_amount),
-            'total_bonus': float(total_bonus),
-            'deductions': 0,
-            'net_salary': float(employee.base_salary + total_amount + total_bonus)
-        }
-
         # Tạo hoặc cập nhật MonthlySalary
         monthly_salary, created = MonthlySalary.objects.update_or_create(
             employee=employee,
             month=month,
             defaults={
-                'total_salary': breakdown['net_salary'],
-                'breakdown': breakdown,
+                'base_salary': employee.base_salary,
+                'bonus': total_bonus,
+                'deduction': 0,
+                'total_amount': employee.base_salary + total_amount + total_bonus,
+                'projects_detail': project_salaries,
+                'status': 'pending',
                 'created_by': created_by
             }
         )
@@ -205,8 +321,8 @@ class SalaryService:
         monthly_salaries = MonthlySalary.objects.filter(month=month).select_related('employee')
 
         total_employees = monthly_salaries.count()
-        total_salary = monthly_salaries.aggregate(total=Sum('total_salary'))['total'] or 0
-        total_paid = monthly_salaries.filter(is_paid=True).aggregate(total=Sum('total_salary'))['total'] or 0
+        total_salary = monthly_salaries.aggregate(total=Sum('total_amount'))['total'] or 0
+        total_paid = monthly_salaries.filter(status='paid').aggregate(total=Sum('total_amount'))['total'] or 0
         total_unpaid = total_salary - total_paid
 
         employee_salaries = []
@@ -215,9 +331,12 @@ class SalaryService:
                 'employee_id': str(ms.employee.id),
                 'employee_name': ms.employee.name,
                 'role': ms.employee.role,
-                'total_salary': float(ms.total_salary),
-                'is_paid': ms.is_paid,
-                'breakdown': ms.breakdown
+                'total_salary': float(ms.total_amount),
+                'status': ms.status,
+                'base_salary': float(ms.base_salary),
+                'bonus': float(ms.bonus),
+                'deduction': float(ms.deduction),
+                'projects_detail': ms.projects_detail
             })
 
         return {
@@ -260,8 +379,8 @@ class SalaryService:
         """
         try:
             monthly_salary = MonthlySalary.objects.get(id=monthly_salary_id)
-            monthly_salary.is_paid = True
-            monthly_salary.paid_date = paid_date
+            monthly_salary.status = 'paid'
+            monthly_salary.payment_date = paid_date
             monthly_salary.payment_method = payment_method
             monthly_salary.save()
             return monthly_salary

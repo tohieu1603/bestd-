@@ -62,37 +62,71 @@ class SalaryList(BaseModel):
     items: List[SalaryRead]
 
 
+class EmployeeMinimal(BaseModel):
+    """Minimal employee info for salary."""
+    id: UUID
+    name: str
+
+    class Config:
+        from_attributes = True
+
+
+class ProjectDetail(BaseModel):
+    """Project detail for salary."""
+    project_id: str  # Changed to str for flexibility
+    project_name: str
+    salary: float
+
+
 class MonthlySalaryBase(BaseModel):
     """Base monthly salary schema."""
-    employee: UUID = Field(..., description="ID nhân viên")
+    employee_id: UUID = Field(..., description="ID nhân viên")
     month: str = Field(..., pattern=r'^\d{4}-\d{2}$', description="Tháng (YYYY-MM)")
-    total_salary: float = Field(..., ge=0, description="Tổng lương")
+    base_salary: float = Field(default=0, ge=0, description="Lương cơ bản")
+    bonus: float = Field(default=0, ge=0, description="Thưởng")
+    deduction: float = Field(default=0, ge=0, description="Khấu trừ")
+    total_amount: float = Field(..., ge=0, description="Tổng lương")
 
 
-class MonthlySalaryCreate(MonthlySalaryBase):
+class MonthlySalaryCreate(BaseModel):
     """Schema cho tạo monthly salary."""
-    breakdown: Dict = Field(..., description="Chi tiết lương")
-    is_paid: bool = False
+    employee_id: UUID = Field(..., description="ID nhân viên")
+    month: str = Field(..., pattern=r'^\d{4}-\d{2}$', description="Tháng (YYYY-MM)")
+    base_salary: float = Field(default=0, ge=0, description="Lương cơ bản")
+    bonus: float = Field(default=0, ge=0, description="Thưởng")
+    deduction: float = Field(default=0, ge=0, description="Khấu trừ")
+    total_amount: float = Field(..., ge=0, description="Tổng lương")
+    projects_detail: List[ProjectDetail] = Field(default=[], description="Chi tiết dự án")
+    status: str = Field(default='pending', description="Trạng thái")
     payment_method: Optional[str] = None
     notes: Optional[str] = None
 
 
 class MonthlySalaryUpdate(BaseModel):
     """Schema cho cập nhật monthly salary."""
-    total_salary: Optional[float] = Field(None, ge=0)
-    breakdown: Optional[Dict] = None
-    is_paid: Optional[bool] = None
-    paid_date: Optional[date] = None
+    base_salary: Optional[float] = Field(None, ge=0)
+    bonus: Optional[float] = Field(None, ge=0)
+    deduction: Optional[float] = Field(None, ge=0)
+    total_amount: Optional[float] = Field(None, ge=0)
+    projects_detail: Optional[List[ProjectDetail]] = None
+    status: Optional[str] = None
+    payment_date: Optional[date] = None
     payment_method: Optional[str] = None
     notes: Optional[str] = None
 
 
-class MonthlySalaryRead(MonthlySalaryBase):
+class MonthlySalaryRead(BaseModel):
     """Schema cho đọc dữ liệu monthly salary."""
     id: UUID
-    breakdown: Dict
-    is_paid: bool
-    paid_date: Optional[date] = None
+    employee: EmployeeMinimal
+    month: str
+    base_salary: float
+    bonus: float
+    deduction: float
+    total_amount: float
+    projects_detail: List[Dict] = []
+    status: str
+    payment_date: Optional[date] = None
     payment_method: Optional[str] = None
     notes: Optional[str] = None
     created_at: datetime
@@ -105,7 +139,7 @@ class MonthlySalaryRead(MonthlySalaryBase):
 class MonthlySalaryList(BaseModel):
     """Schema cho danh sách monthly salary."""
     total: int
-    items: List[MonthlySalaryRead]
+    results: List[Dict]  # Use Dict to match manual serialization in API
 
 
 class SalaryFilter(BaseModel):

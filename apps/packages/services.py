@@ -27,6 +27,10 @@ class PackageService:
 
         package = Package(**package_data)
 
+        # Ensure notes has a value (database constraint)
+        if not package.notes:
+            package.notes = ''
+
         if data.details:
             package.details = data.details.model_dump()
 

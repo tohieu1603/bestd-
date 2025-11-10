@@ -28,20 +28,42 @@ class ProjectService:
             Project object
         """
         from apps.packages.models import Package
+        from apps.employees.models import Employee
+
+        # Validation 1: Phải có photographer chính
+        if not data.team or not data.team.main_photographer or not data.team.main_photographer.employee:
+            raise ValueError("Bắt buộc phải có Photographer chính")
+
+        # Validation 2: Kiểm tra photographer chính có tồn tại và active
+        try:
+            main_photographer = Employee.objects.get(id=data.team.main_photographer.employee)
+            if not main_photographer.is_active:
+                raise ValueError("Photographer chính đã nghỉ việc, vui lòng chọn người khác")
+        except Employee.DoesNotExist:
+            raise ValueError("Photographer chính không tồn tại")
+
+        # Validation 3: Kiểm tra package_type
+        if not data.package_type:
+            raise ValueError("Bắt buộc phải chọn gói chụp")
+
+        # Validation 4: Giá gói phải > 0
+        if data.package_price <= 0:
+            raise ValueError("Giá gói phải lớn hơn 0")
+
+        # Validation 5: Discount không được lớn hơn giá gói
+        if data.package_discount > data.package_price:
+            raise ValueError("Chiết khấu không được lớn hơn giá gói")
 
         project_data = data.model_dump(
             exclude={'additional_packages', 'team', 'partners', 'payment', 'package_type'}
         )
 
         # Handle package_type ForeignKey
-        if data.package_type:
-            try:
-                package = Package.objects.get(id=data.package_type)
-                project_data['package_type'] = package
-            except Package.DoesNotExist:
-                project_data['package_type'] = None
-        else:
-            project_data['package_type'] = None
+        try:
+            package = Package.objects.get(id=data.package_type)
+            project_data['package_type'] = package
+        except Package.DoesNotExist:
+            raise ValueError("Gói chụp không tồn tại")
 
         project = Project(**project_data)
 
@@ -213,9 +235,21 @@ class ProjectService:
 
         Returns:
             True nếu thành công, False nếu không tìm thấy
+
+        Raises:
+            ValueError: Nếu không thể xóa dự án
         """
         try:
             project = Project.objects.get(id=project_id)
+
+            # Validation 1: Không cho xóa dự án đã hoàn thành
+            if project.status == 'completed':
+                raise ValueError("Không thể xóa dự án đã hoàn thành")
+
+            # Validation 2: Không cho xóa dự án đã bị hủy
+            if project.status == 'cancelled':
+                raise ValueError("Dự án đã bị hủy trước đó")
+
             project.status = 'cancelled'
             project.save()
             return True

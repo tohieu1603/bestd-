@@ -10,7 +10,6 @@ from apps.partners.models import Partner
 
 User = get_user_model()
 
-
 class Project(models.Model):
     """Model dự án."""
 
@@ -83,8 +82,8 @@ class Project(models.Model):
 
     # Thông tin chụp
     shoot_date = models.DateField(verbose_name="Ngày chụp")
-    shoot_time = models.CharField(max_length=50, blank=True, verbose_name="Giờ chụp")
-    location = models.CharField(max_length=500, blank=True, verbose_name="Địa điểm")
+    shoot_time = models.CharField(max_length=50, blank=True, null=True, verbose_name="Giờ chụp")
+    location = models.CharField(max_length=500, blank=True, null=True, verbose_name="Địa điểm")
 
     # Trạng thái
     status = models.CharField(

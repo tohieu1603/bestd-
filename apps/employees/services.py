@@ -28,6 +28,12 @@ class EmployeeService:
         # Xử lý nested data
         employee = Employee(**employee_data)
 
+        # Ensure address and notes have values (database constraint)
+        if not employee.address:
+            employee.address = ''
+        if not employee.notes:
+            employee.notes = ''
+
         if data.bank_account:
             employee.bank_account = data.bank_account.model_dump()
 

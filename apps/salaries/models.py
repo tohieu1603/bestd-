@@ -107,6 +107,12 @@ class Salary(models.Model):
 class MonthlySalary(models.Model):
     """Model tổng hợp lương tháng của nhân viên."""
 
+    STATUS_CHOICES = [
+        ('pending', 'Chờ thanh toán'),
+        ('paid', 'Đã thanh toán'),
+        ('cancelled', 'Đã hủy'),
+    ]
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
 
     employee = models.ForeignKey(
@@ -122,23 +128,48 @@ class MonthlySalary(models.Model):
     )
 
     # Salary breakdown
-    total_salary = models.DecimalField(
+    base_salary = models.DecimalField(
         max_digits=12,
         decimal_places=0,
+        default=0,
+        verbose_name="Lương cơ bản"
+    )
+    bonus = models.DecimalField(
+        max_digits=12,
+        decimal_places=0,
+        default=0,
+        verbose_name="Thưởng"
+    )
+    deduction = models.DecimalField(
+        max_digits=12,
+        decimal_places=0,
+        default=0,
+        verbose_name="Khấu trừ"
+    )
+    total_amount = models.DecimalField(
+        max_digits=12,
+        decimal_places=0,
+        default=0,
         verbose_name="Tổng lương"
     )
-    breakdown = models.JSONField(
-        default=dict,
-        verbose_name="Chi tiết",
-        help_text="Format: {base_salary, project_salaries[], total_bonus, deductions, net_salary}"
+    projects_detail = models.JSONField(
+        default=list,
+        verbose_name="Chi tiết dự án",
+        help_text="Format: [{project_id, project_name, salary}]"
     )
 
     # Payment info
-    is_paid = models.BooleanField(default=False, verbose_name="Đã thanh toán")
-    paid_date = models.DateField(null=True, blank=True, verbose_name="Ngày thanh toán")
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default='pending',
+        verbose_name="Trạng thái"
+    )
+    payment_date = models.DateField(null=True, blank=True, verbose_name="Ngày thanh toán")
     payment_method = models.CharField(
         max_length=50,
         blank=True,
+        default="",
         verbose_name="Phương thức thanh toán"
     )
 
@@ -165,7 +196,7 @@ class MonthlySalary(models.Model):
         indexes = [
             models.Index(fields=['month']),
             models.Index(fields=['employee', 'month']),
-            models.Index(fields=['is_paid']),
+            models.Index(fields=['status']),
         ]
 
     def __str__(self):
